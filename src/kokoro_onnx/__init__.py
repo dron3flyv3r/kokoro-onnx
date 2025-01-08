@@ -6,6 +6,7 @@ from functools import lru_cache
 
 import numpy as np
 from onnxruntime import InferenceSession
+import onnxruntime as ort
 
 from .config import MAX_PHONEME_LENGTH, SAMPLE_RATE, SUPPORTED_LANGUAGES, KoKoroConfig
 from .log import log
@@ -15,11 +16,12 @@ import librosa
 
 class Kokoro:
     def __init__(
-        self, model_path: str, voices_path: str, espeak_ng_data_path: str = None
+        self, model_path: str, voices_path: str, espeak_ng_data_path: str = None, use_cuda: bool = False
     ):
         self.config = KoKoroConfig(model_path, voices_path, espeak_ng_data_path)
         self.config.validate()
-        self.sess = InferenceSession(model_path)
+        providers = ['CUDAExecutionProvider'] if use_cuda and 'CUDAExecutionProvider' in ort.get_available_providers() else ['CPUExecutionProvider']
+        self.sess = InferenceSession(model_path, providers=providers)
         self.voices: list[str] = self.config.get_voice_names()
         self.tokenizer = Tokenizer(espeak_data_path=espeak_ng_data_path)
 
