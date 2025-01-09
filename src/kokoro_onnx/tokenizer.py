@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 
 import espeakng_loader
 import phonemizer
@@ -6,9 +7,15 @@ from phonemizer.backend.espeak.wrapper import EspeakWrapper
 
 from .config import MAX_PHONEME_LENGTH, VOCAB
 
+# Precompiled regex patterns for performance
+NUM_PATTERN = re.compile(r"\d*\.\d+|\b\d{4}s?\b|(?<!:)\b(?:[1-9]|1[0-2]):[0-5]\d\b(?!:)")
+MONEY_PATTERN = re.compile(
+    r"(?i)[$£]\d+(?:\.\d+)?(?: hundred| thousand| (?:[bm]|tr)illion)*\b|[$£]\d+\.\d\d?\b"
+)
+POINT_PATTERN = re.compile(r"\d*\.\d+")
 
 class Tokenizer:
-    def __init__(self, espeak_data_path: str = None):
+    def __init__(self, espeak_data_path: Optional[str] = None):
         if not espeak_data_path:
             espeak_data_path = espeakng_loader.get_data_path()
         EspeakWrapper.set_library(espeakng_loader.get_library_path())
@@ -90,17 +97,17 @@ class Tokenizer:
         text = re.sub(r"\betc\.(?! [A-Z])", "etc", text)
         text = re.sub(r"(?i)\b(y)eah?\b", r"\1e'a", text)
         text = re.sub(
-            r"\d*\.\d+|\b\d{4}s?\b|(?<!:)\b(?:[1-9]|1[0-2]):[0-5]\d\b(?!:)",
+            NUM_PATTERN,
             Tokenizer.split_num,
             text,
         )
         text = re.sub(r"(?<=\d),(?=\d)", "", text)
         text = re.sub(
-            r"(?i)[$£]\d+(?:\.\d+)?(?: hundred| thousand| (?:[bm]|tr)illion)*\b|[$£]\d+\.\d\d?\b",
+            MONEY_PATTERN,
             Tokenizer.flip_money,
             text,
         )
-        text = re.sub(r"\d*\.\d+", Tokenizer.point_num, text)
+        text = re.sub(POINT_PATTERN, Tokenizer.point_num, text)
         text = re.sub(r"(?<=\d)-(?=\d)", " to ", text)
         text = re.sub(r"(?<=\d)S", " S", text)
         text = re.sub(r"(?<=[BCDFGHJ-NP-TV-Z])'?s\b", "'S", text)
@@ -130,6 +137,8 @@ class Tokenizer:
         )
 
         # https://en.wiktionary.org/wiki/kokoro#English
+        if not isinstance(phonemes, str):
+            raise ValueError(f"phonemizer failed to phonemize text: {text}")
         phonemes = phonemes.replace("kəkˈoːɹoʊ", "kˈoʊkəɹoʊ").replace(
             "kəkˈɔːɹəʊ", "kˈəʊkəɹəʊ"
         )
